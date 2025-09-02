@@ -1,0 +1,89 @@
+9. Varray operations.....
+
+SET SERVEROUTPUT ON;
+
+
+** Create a type...
+create or replace type num_varray as varray(10) of number;
+/
+
+
+** Create employe table...
+
+create table employe(
+    emp_id number primary key,
+    mobile num_varray
+)
+tablespace users
+storage(
+	initial 10k
+	next 5k
+	minextents 1
+    maxextents 50
+);
+
+
+** Insert record...
+insert into employe values (101,num_varray(8980352224,9737362533));
+insert into employe values (102,num_varray(7990414736));
+
+
+** Create procedure for insert, update and delete in varray...
+
+create or replace procedure manage_mobile_varray (
+	p_id in number,
+    p_operation in varchar2,
+    p_value in number,
+    p_index in number
+) is
+    v_arr num_varray;
+begin
+    select mobile into v_arr from employe where emp_id = p_id;
+    if p_operation = 'insert' then
+		if v_arr.count < 10 then
+			v_arr.extend;
+            v_arr(v_arr.count) := p_value;
+        else
+            dbms_output.put_line('Varray is full.');
+        end if;
+    elsif p_operation = 'update' then
+        if p_index between 1 and v_arr.count then
+            v_arr(p_index) := p_value;
+        else
+            dbms_output.put_line('Invalid index.');
+        end if;
+    elsif p_operation = 'delete' then
+        if p_index between 1 and v_arr.count then
+            for i in p_index .. v_arr.count-1 loop
+                v_arr(i) := v_arr(i+1);
+            end loop;
+            v_arr.trim;
+        else
+            dbms_output.put_line('Invalid index.');
+        end if;
+    end if;
+    update employe set mobile = v_arr where emp_id = p_id;
+    commit;
+ 
+	dbms_output.put_line('Operation completed successfully.');
+ end manage_mobile_varray;
+ /
+
+
+
+** Insert into varray...
+
+exec manage_mobile_varray(102,'insert',9510291314,null);
+
+
+	   
+** Update into varray...
+	   
+exec manage_mobile_varray(101,'update',7990414736,2);
+
+
+	
+	
+** Delete from varray...	   
+
+exec manage_mobile_varray(101,'delete',null,2);

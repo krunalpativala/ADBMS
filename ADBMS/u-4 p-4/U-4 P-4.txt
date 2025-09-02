@@ -1,0 +1,13 @@
+Practical-14
+------------
+- Export your schema without procedure and import into scott schema and load data from sequential file and dump into scott schema.
+
+CREATE TABLE employee2 (
+        emp_id    NUMBER(5),
+        emp_name  VARCHAR2(50),
+        salary    NUMBER(10,2)
+    ) TABLESPACE USERS;
+
+
+sqlldr mca30@orcl control=control.ctl log=control.log
+    

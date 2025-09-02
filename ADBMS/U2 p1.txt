@@ -1,0 +1,55 @@
+Practical-2
+------------
+- Export full schema and Import in the scott schema of the database. 
+- And also explain each parameter with Export and Import. 
+- And Load external data into your schema with the help of all the three method.
+
+
+
+****************************************
+exp mca29@ORCL file=mca29_schema.dmp log=mca29_export.log owner=mca29 rows=y indexes=y grants=y triggers=y constraints=y
+***********************
+imp mca23@ORCL file=C:\Users\rohit\mca29_schema.dmp log=C:\Users\rohit\mca29_import.log fromuser=mca29 touser=mca23 rows=y indexes=y grants=y
+*******************
+
+
+
+Export entire :
+exp mca26@orcl19 file=mca26_schema.dmp log=mca26_export.log owner=mca26 rows=y indexes=y grants=y triggers=y constraints=y
+
+
+Export specific tables :
+exp mca26@orcl19 file=mca26_dept_emp.dmp log=mca26_dept_emp.log tables=(DEPARTMENT,EMPLOYEE) rows=y indexes=y grants=y triggers=y constraints=y
+
+
+
+Export schema excluding a specific object type :
+exp mca26@orcl19 file=mca26_only_tables.dmp log=mca26_only_tables.log owner=mca26 rows=Y indexes=N grants=N triggers=N constraints=N
+
+
+Export only the data :
+exp mca26@orcl19 file=mca26_data_only.dmp log=mca26_data_only_export.log owner=mca26 rows=y indexes=n grants=n triggers=n constraints=n
+
+
+Export schema including specific tables but without indexes:
+exp mca26@orcl19 file=mca26_no_indexes.dmp log=mca26_no_indexes_export.log tables=(DEPARTMENT,EMPLOYEE) rows=y indexes=n grants=y triggers=y constraints=y
+
+
+
+Import the schema :
+imp mca26@orcl19 file=mca26_schema.dmp log=mca26_import.log fromuser=mca26 touser=mca26
+
+
+Import schema excluding a specific table :
+imp mca26@orcl19 file=mca26_schema.dmp log=mca26_import_exclude_table.log fromuser=mca26 touser=mca26 tables=(DEPARTMENT,EMPLOYEE) ignore=y
+
+
+Import specific tables :
+imp mca26@orcl19 file=mca26_schema.dmp log=mca26_import_tables.log fromuser=mca26 touser=mca26 tables=(DEPARTMENT,EMPLOYEE)
+
+Import data excluding constraints :
+imp mca26@orcl19 file=mca26_schema.dmp log=mca26_import_no_constraints.log fromuser=mca26 touser=mca26 constraints=n
+
+
+Import data overriding existing data:
+imp mca26@orcl19 file=mca26_schema.dmp log=mca26_import_full.log full=y

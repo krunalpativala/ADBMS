@@ -1,0 +1,493 @@
+Cluster
+-	CREATE CLUSTER book_cluster (
+  	  book_id NUMBER
+	)
+	SIZE 512
+	STORAGE (
+  	  INITIAL 20K
+   	 NEXT 20K
+       	 MINEXTENTS 2
+   	 MAXEXTENTS 10
+);
+
+cluster index
+	- CREATE INDEX book_cluster_index ON CLUSTER book_cluster;
+Tables
+
+	1.
+	CREATE TABLE book (
+   	 book_id NUMBER PRIMARY KEY,
+   	 title   VARCHAR2(100),
+   	 author  VARCHAR2(100),
+   	 price   NUMBER(8,2)
+	)
+	CLUSTER book_cluster (book_id);
+
+	2.
+	CREATE TABLE inventory (
+   	 book_id  NUMBER,
+    	quantity NUMBER,
+    	CONSTRAINT fk_inv_book FOREIGN KEY (book_id) REFERENCES book(book_id)
+	)
+	CLUSTER book_cluster (book_id);
+
+
+	3.
+	CREATE TABLE customer (
+    	customer_id NUMBER PRIMARY KEY,
+   	 name        VARCHAR2(100),
+    	email       VARCHAR2(100),
+    	phone       VARCHAR2(15)
+	)
+	  STORAGE (
+  	  INITIAL 20K
+          NEXT 20K
+      	  MINEXTENTS 2
+          MAXEXTENTS 10
+       );
+	
+
+
+
+	4.
+	CREATE TABLE book_order (
+  	  order_id     NUMBER PRIMARY KEY,
+ 	  customer_id  NUMBER,
+  	  order_date   DATE,
+    	  CONSTRAINT fk_customer FOREIGN KEY (customer_id) 
+   	  REFERENCES customer(customer_id)
+	)
+	STORAGE (                      
+    	INITIAL 20K
+    	NEXT 20K
+    	MINEXTENTS 2
+    	MAXEXTENTS 10
+	)
+	PARTITION BY RANGE (order_date) (
+    	PARTITION book_order_july VALUES LESS THAN (TO_DATE('01-AUG-2025','DD-MON-YYYY'))
+        	TABLESPACE STUD,
+    	PARTITION book_order_aug VALUES LESS THAN (TO_DATE('01-SEP-2025','DD-MON-YYYY'))
+        	TABLESPACE STUDENT,
+    	PARTITION book_order_sep VALUES LESS THAN (TO_DATE('01-OCT-2025','DD-MON-YYYY'))
+        	TABLESPACE STUD,
+    	PARTITION book_order_future VALUES LESS THAN (MAXVALUE)
+        	TABLESPACE STUDENT
+	);
+
+
+
+
+
+	5.
+	CREATE TABLE order_item (
+  	  order_id   NUMBER,
+  	  book_id    NUMBER,
+ 	   quantity   NUMBER,
+ 	   CONSTRAINT fk_order FOREIGN KEY (order_id) REFERENCES book_order(order_id),
+	    CONSTRAINT fk_book FOREIGN KEY (book_id) REFERENCES book(book_id)
+	)
+	STORAGE (
+  	  INITIAL 20K
+          NEXT 20K
+      	  MINEXTENTS 2
+          MAXEXTENTS 10
+       );
+
+Sequence
+
+ -	CREATE SEQUENCE order_seq
+	START WITH 1001
+	INCREMENT BY 1
+	NOCACHE;
+
+ -	INSERT INTO book_order VALUES (order_seq.NEXTVAL, 1, SYSDATE);
+	INSERT INTO book_order VALUES (order_seq.NEXTVAL, 2, SYSDATE);
+
+Trigger
+
+-	CREATE OR REPLACE TRIGGER trg_decrease_inventory_after_insert
+	BEFORE INSERT ON order_item
+	FOR EACH ROW
+	DECLARE
+	    v_available_qty NUMBER;
+	BEGIN
+  	  SELECT quantity INTO v_available_qty
+  	  FROM inventory
+    	WHERE book_id = :NEW.book_id
+   	 FOR UPDATE;
+
+   	 IF v_available_qty < :NEW.quantity THEN
+    	    RAISE_APPLICATION_ERROR(-20001, 'Not enough inventory for this book.');
+   	 ELSE
+    	    UPDATE inventory
+    	    SET quantity = quantity - :NEW.quantity
+     	   WHERE book_id = :NEW.book_id;
+   	 END IF;
+	END;
+	/
+
+
+-	CREATE OR REPLACE TRIGGER trg_increase_inventory_after_delete
+	AFTER DELETE ON order_item
+	FOR EACH ROW
+	BEGIN
+   	 UPDATE inventory
+   	 SET quantity = quantity + :OLD.quantity
+   	 WHERE book_id = :OLD.book_id;
+	END;
+	/
+
+-	CREATE OR REPLACE TRIGGER trg_update_inventory_after_update
+	BEFORE UPDATE OF quantity ON order_item
+	FOR EACH ROW
+	DECLARE
+    	v_current_qty NUMBER;
+   	 v_diff NUMBER;
+	BEGIN
+   	 v_diff := :OLD.quantity - :NEW.quantity;
+
+   	 SELECT quantity INTO v_current_qty
+    	FROM inventory
+    	WHERE book_id = :NEW.book_id
+   	 FOR UPDATE;
+
+    	IF v_diff < 0 AND v_current_qty < ABS(v_diff) THEN
+       	 RAISE_APPLICATION_ERROR(-20002, 'Not enough inventory to increase quantity.');
+    	ELSE
+      	  UPDATE inventory
+      	  SET quantity = quantity + v_diff
+        	WHERE book_id = :NEW.book_id;
+    	END IF;
+	END;
+	/
+
+Index
+
+-	CREATE INDEX idx_book_title ON book(title);
+
+-	CREATE INDEX idx_customer_email ON customer(email);
+
+	
+	Index Testing
+
+	-  SELECT * FROM book WHERE title LIKE 'Clean Code%';
+	-  SELECT * FROM customer WHERE email = 'john@example.com';
+
+pl/sql
+
+
+Package Interface
+
+	CREATE OR REPLACE PACKAGE bookstore_pkg IS
+
+  -- Add operations
+  PROCEDURE add_customer (
+    p_name  IN VARCHAR2,
+    p_email IN VARCHAR2,
+    p_phone IN VARCHAR2
+  );
+
+  PROCEDURE add_book (
+    p_title  IN VARCHAR2,
+    p_author IN VARCHAR2,
+    p_price  IN NUMBER
+  );
+
+  PROCEDURE add_inventory (
+    p_book_id IN NUMBER,
+    p_qty     IN NUMBER
+  );
+
+  PROCEDURE add_order (
+    p_customer_id IN NUMBER,
+    p_order_id    OUT NUMBER
+  );
+
+  PROCEDURE add_order_item (
+    p_order_id IN NUMBER,
+    p_book_id  IN NUMBER,
+    p_qty      IN NUMBER
+  );
+
+  FUNCTION get_inventory_qty (
+    p_book_id IN NUMBER
+  ) RETURN NUMBER;
+
+  -- Display procedures
+  PROCEDURE display_customers;
+  PROCEDURE display_book;
+  PROCEDURE display_inventory;
+  PROCEDURE display_order;
+  PROCEDURE display_order_item;
+
+END bookstore_pkg;
+/
+
+
+Packge Body
+
+ CREATE OR REPLACE PACKAGE BODY bookstore_pkg IS
+
+  PROCEDURE add_customer (
+    p_name  IN VARCHAR2,
+    p_email IN VARCHAR2,
+    p_phone IN VARCHAR2
+  ) IS
+    v_customer_id NUMBER;
+  BEGIN
+    SELECT NVL(MAX(customer_id), 0) + 1 INTO v_customer_id FROM customer;
+    INSERT INTO customer (customer_id, name, email, phone)
+    VALUES (v_customer_id, p_name, p_email, p_phone);
+    DBMS_OUTPUT.PUT_LINE('Customer added with ID: ' || v_customer_id);
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      DBMS_OUTPUT.PUT_LINE('Error adding customer: ' || SQLERRM);
+  END add_customer;
+
+  PROCEDURE add_book (
+    p_title  IN VARCHAR2,
+    p_author IN VARCHAR2,
+    p_price  IN NUMBER
+  ) IS
+    v_book_id NUMBER;
+  BEGIN
+    SELECT NVL(MAX(book_id), 0) + 1 INTO v_book_id FROM book;
+    INSERT INTO book (book_id, title, author, price)
+    VALUES (v_book_id, p_title, p_author, p_price);
+    INSERT INTO inventory (book_id, quantity) VALUES (v_book_id, 0);
+    DBMS_OUTPUT.PUT_LINE('Book added with ID: ' || v_book_id);
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      DBMS_OUTPUT.PUT_LINE('Error adding book: ' || SQLERRM);
+  END add_book;
+
+  PROCEDURE add_inventory (
+    p_book_id IN NUMBER,
+    p_qty     IN NUMBER
+  ) IS
+  BEGIN
+    UPDATE inventory
+    SET quantity = quantity + p_qty
+    WHERE book_id = p_book_id;
+
+    IF SQL%ROWCOUNT = 0 THEN
+      INSERT INTO inventory (book_id, quantity) VALUES (p_book_id, p_qty);
+    END IF;
+
+    DBMS_OUTPUT.PUT_LINE('Inventory updated for book ID: ' || p_book_id);
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      DBMS_OUTPUT.PUT_LINE('Error updating inventory: ' || SQLERRM);
+  END add_inventory;
+
+  PROCEDURE add_order (
+    p_customer_id IN NUMBER,
+    p_order_id    OUT NUMBER
+  ) IS
+  BEGIN
+    SELECT order_seq.NEXTVAL INTO p_order_id FROM dual;
+    INSERT INTO book_order (order_id, customer_id, order_date)
+    VALUES (p_order_id, p_customer_id, SYSDATE);
+    DBMS_OUTPUT.PUT_LINE('Order created with ID: ' || p_order_id);
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      DBMS_OUTPUT.PUT_LINE('Error creating order: ' || SQLERRM);
+  END add_order;
+
+  PROCEDURE add_order_item (
+    p_order_id IN NUMBER,
+    p_book_id  IN NUMBER,
+    p_qty      IN NUMBER
+  ) IS
+  BEGIN
+    IF get_inventory_qty(p_book_id) < p_qty THEN
+      RAISE_APPLICATION_ERROR(-20010, 'Not enough inventory for this book.');
+    END IF;
+
+    INSERT INTO order_item (order_id, book_id, quantity)
+    VALUES (p_order_id, p_book_id, p_qty);
+    COMMIT;
+  EXCEPTION
+    WHEN OTHERS THEN
+      ROLLBACK;
+      DBMS_OUTPUT.PUT_LINE('Error adding order item: ' || SQLERRM);
+  END add_order_item;
+
+  FUNCTION get_inventory_qty (
+    p_book_id IN NUMBER
+  ) RETURN NUMBER IS
+    v_qty NUMBER;
+  BEGIN
+    SELECT quantity INTO v_qty FROM inventory WHERE book_id = p_book_id;
+    RETURN v_qty;
+  EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+      RETURN 0;
+  END get_inventory_qty;
+
+  PROCEDURE display_customers IS
+    CURSOR c_customers IS
+      SELECT customer_id, name, email, phone FROM customer ORDER BY customer_id;
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Customer List ---');
+    FOR rec IN c_customers LOOP
+      DBMS_OUTPUT.PUT_LINE('ID: ' || rec.customer_id || ', Name: ' || rec.name ||
+                           ', Email: ' || rec.email || ', Phone: ' || rec.phone);
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('--- End of List ---');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Error retrieving customers: ' || SQLERRM);
+  END display_customers;
+
+  PROCEDURE display_book IS
+    CURSOR c_books IS
+      SELECT book_id, title, author, price FROM book ORDER BY book_id;
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Book List ---');
+    FOR rec IN c_books LOOP
+      DBMS_OUTPUT.PUT_LINE('ID: ' || rec.book_id || ', Title: ' || rec.title ||
+                           ', Author: ' || rec.author || ', Price: ' || TO_CHAR(rec.price, 'FM9999990.00'));
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('--- End of List ---');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Error retrieving books: ' || SQLERRM);
+  END display_book;
+
+  PROCEDURE display_inventory IS
+    CURSOR c_inventory IS
+      SELECT book_id, quantity FROM inventory ORDER BY book_id;
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Inventory List ---');
+    FOR rec IN c_inventory LOOP
+      DBMS_OUTPUT.PUT_LINE('Book ID: ' || rec.book_id || ', Quantity: ' || rec.quantity);
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('--- End of Inventory ---');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Error retrieving inventory: ' || SQLERRM);
+  END display_inventory;
+
+  PROCEDURE display_order IS
+    CURSOR c_orders IS
+      SELECT order_id, customer_id, order_date FROM book_order ORDER BY order_id;
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Order List ---');
+    FOR rec IN c_orders LOOP
+      DBMS_OUTPUT.PUT_LINE('Order ID: ' || rec.order_id ||
+                           ', Customer ID: ' || rec.customer_id ||
+                           ', Order Date: ' || TO_CHAR(rec.order_date, 'DD-MON-YYYY HH24:MI:SS'));
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('--- End of Orders ---');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Error retrieving orders: ' || SQLERRM);
+  END display_order;
+
+  PROCEDURE display_order_item IS
+    CURSOR c_order_items IS
+      SELECT oi.order_id, oi.book_id, b.title, oi.quantity
+      FROM order_item oi
+      JOIN book b ON oi.book_id = b.book_id
+      ORDER BY oi.order_id, oi.book_id;
+  BEGIN
+    DBMS_OUTPUT.PUT_LINE('--- Order Items List ---');
+    FOR rec IN c_order_items LOOP
+      DBMS_OUTPUT.PUT_LINE('Order ID: ' || rec.order_id ||
+                           ', Book ID: ' || rec.book_id ||
+                           ', Title: ' || rec.title ||
+                           ', Quantity: ' || rec.quantity);
+    END LOOP;
+    DBMS_OUTPUT.PUT_LINE('--- End of Order Items ---');
+  EXCEPTION
+    WHEN OTHERS THEN
+      DBMS_OUTPUT.PUT_LINE('Error retrieving order items: ' || SQLERRM);
+  END display_order_item;
+
+END bookstore_pkg;
+/
+
+
+
+
+
+	-- Add a customer
+	
+ 	exec bookstore_pkg.add_customer('ram', 'ram@gmail.com', '046-1234');
+	
+
+	-- Add a book
+	
+ 	 exec  bookstore_pkg.add_book('mahabhart', 'Shree Ganesh', 6000.00);
+	
+
+	-- Add inventory
+	
+	 exec  bookstore_pkg.add_inventory(2, 25); 
+	
+
+	-- Add an order and items
+	DECLARE
+	  v_order_id NUMBER;
+	BEGIN
+	  bookstore_pkg.add_order(1, v_order_id);  
+	  bookstore_pkg.add_order_item(v_order_id, 1, 4);
+	  bookstore_pkg.add_order_item(v_order_id, 2, 3);
+	END;
+	/
+
+	-- get inventory function use.
+	SELECT bookstore_pkg.get_inventory_qty(101) AS quantity
+	FROM dual;
+
+	-- Display Data 
+	SET SERVEROUTPUT ON;
+	EXEC bookstore_pkg.display_customers;
+        EXEC bookstore_pkg.display_book;
+        EXEC bookstore_pkg.display_inventory;
+        EXEC bookstore_pkg.display_order;
+        EXEC bookstore_pkg.display_order_item;
+
+
+-View
+	
+	CREATE OR REPLACE VIEW bookstore_order_view AS
+	SELECT 
+ 	   bo.order_id,
+   	 bo.order_date,
+   	 c.customer_id,
+   	 c.name AS customer_name,
+   	 c.email AS customer_email,
+    	b.book_id,
+    	b.title AS book_title,
+   	 b.author,
+   	 b.price,
+   	 oi.quantity,
+    	(b.price * oi.quantity) AS total_price
+	FROM 
+  	  book_order bo,
+    	customer c,
+    	order_item oi,
+    	book b
+	WHERE 
+   	 bo.customer_id = c.customer_id
+   	 AND bo.order_id = oi.order_id
+    	AND oi.book_id = b.book_id;
+
+
+
+
+	- select view
+
+	SELECT * FROM bookstore_order_view
+		WHERE customer_name = 'ak';
+

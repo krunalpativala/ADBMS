@@ -1,0 +1,31 @@
+2. tablespace fragmentation
+
+select tablespace_name, 
+       count(*) as total_extents, 
+       sum(bytes) as total_bytes, 
+       max(bytes) as largest_extent, 
+       min(bytes) as smallest_extent 
+from dba_extents 
+group by tablespace_name;
+
+2: segment fragmentation
+
+select segment_name, 
+       segment_type, 
+       tablespace_name, 
+       count(*) as extents, 
+       sum(bytes) as total_bytes 
+from dba_extents 
+group by segment_name, segment_type, tablespace_name;
+
+3: freespace fragmentation
+
+select tablespace_name, 
+       count(*) as fragments, 
+       sum(bytes) as total_free_space, 
+       max(bytes) as largest_free_extent, 
+       min(bytes) as smallest_free_extent 
+from dba_free_space 
+group by tablespace_name;
+
+set autotrace on;

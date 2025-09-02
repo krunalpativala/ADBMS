@@ -1,0 +1,22 @@
+3. identify locks in the database
+
+query: 
+-------------------------------------------------
+select s.sid,s.username,l.type as type,l.lmode as mode_held,l.request as mode_requested,l.id1 as lock_id1,l.id2 as lock_id2 from v$session s,v$lock l where  s.username = 'MCA312' and s.sid = l.sid;
+
+formatted output:
+-------------------------------------------------
+column username format a20
+column type format a10
+column mode_held format a10
+column mode_requested format a10
+
+
+
+
+ae = edition lock {Edition Lock occurs when a non-editioned object, such as a table or other persistent data structures, interacts with editioned objects (like procedures, packages, or views). Once these objects are linked to an editioned object, they can become edition-locked, meaning that changes to these objects are restricted while they are associated with an edition.}
+tx = transction lock
+tm = modified DML lock
+
+update books set ISBN='010458523' where book_id = 101;
+

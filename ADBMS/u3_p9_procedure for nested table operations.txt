@@ -1,0 +1,76 @@
+10. Nested table operations...
+
+set serveroutput on;
+
+** Create type for nested table...
+create type employee_mobile as table of varchar2(10);
+/
+  
+** Create table...
+create table employee(
+	employee_id number,
+	employee_name varchar2(255),
+	mobile employee_mobile
+)
+tablespace users
+storage(
+	initial 10k
+	next 5
+	maxextents 10
+)
+nested table mobile store as mobile_tab;
+
+** Insert record...
+insert into employee values(101,'rohit',employee_mobile('8980352224','9737362533'));
+insert into employee values(102,'krunal',employee_mobile(5565656525,8978456525,4565981202,8725652300));
+insert into employee values(103,'sandip',employee_mobile(9784520235,8745122353,8956022354));
+
+
+** Create procedure for insert, update and delete from nested table...
+
+create or replace procedure manage_employee_mobile (
+	p_employeeid in number,
+    p_operation in varchar2,
+	p_mobile in varchar2,
+    old_mobile in varchar2 default null
+) is
+begin
+    if p_operation = 'insert' then
+		update employee e
+		set e.mobile = e.mobile multiset union employee_mobile(p_mobile)
+        where e.employee_id = p_employeeid; 
+    elsif p_operation = 'update' then
+        update employee e
+        set e.mobile = e.mobile multiset except employee_mobile(old_mobile)
+        where e.employee_id = p_employeeid;
+        update employee e
+        set e.mobile = e.mobile multiset union employee_mobile(p_mobile)
+        where e.employee_id = p_employeeid;
+    elsif p_operation = 'delete' then
+        update employee e
+        set e.mobile = e.mobile multiset except employee_mobile(p_mobile)
+		where e.employee_id = p_employeeid;
+	else
+		dbms_output.put_line('invalid action specified.');
+    end if;
+ end manage_employee_mobile;
+ /
+
+
+** Select from nested table...
+select * from employee order by employee_id;
+
+
+** Insert into nested table...
+
+exec manage_employee_mobile(101,'insert','9876543210');
+
+
+** Update into nested table...
+
+exec manage_employee_mobile(101,'update','1234567890','9876543210');
+
+** Delete from nested table...
+
+exec manage_employee_mobile(101,'delete','1234567890',null);
+
