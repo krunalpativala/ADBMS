@@ -1,0 +1,51 @@
+CREATE TABLE customer_frag (
+    cust_id     NUMBER PRIMARY KEY,
+    cust_name   VARCHAR2(50),
+    cust_addr   VARCHAR2(4000)
+)
+TABLESPACE USERS
+STORAGE (
+    INITIAL 64K
+    NEXT 64K
+    PCTINCREASE 0
+);
+
+INSERT INTO customer_frag VALUES (1, 'Kiran', 'Ahmedabad');
+INSERT INTO customer_frag VALUES (2, 'Mehul', 'Surat');
+INSERT INTO customer_frag VALUES (3, 'Neha', 'Vadodara');
+INSERT INTO customer_frag VALUES (4, 'Ravi', 'Rajkot');
+COMMIT;
+
+-- Fragmentation create
+UPDATE customer_frag
+SET cust_addr = RPAD('A', 2900, 'A')
+WHERE cust_id = 1;
+
+UPDATE customer_frag
+SET cust_addr = RPAD('B', 2900, 'B')
+WHERE cust_id = 2;
+
+COMMIT;
+
+-- Analyze fragmentation
+ANALYZE TABLE customer_frag LIST CHAINED ROWS INTO chained_rows;
+
+SELECT owner_name, table_name, head_rowid
+FROM chained_rows
+WHERE table_name = 'CUSTOMER_FRAG';
+
+-- Remove fragmentation
+CREATE TABLE customer_frag_dummy AS SELECT * FROM customer_frag WHERE 1=0;
+
+ 
+SELECT *
+FROM customer_frag
+WHERE ROWID IN (SELECT head_rowid FROM chained_rows WHERE table_name='CUSTOMER_FRAG');
+
+DELETE FROM customer_frag
+WHERE ROWID IN (SELECT head_rowid FROM chained_rows WHERE table_name='CUSTOMER_FRAG');
+
+INSERT INTO customer_frag
+SELECT * FROM customer_frag_dummy;
+
+TRUNCATE TABLE chained_rows;
