@@ -1,0 +1,51 @@
+
+*DBMS_SPACE package*
+
+CREATE TABLE author (
+    BOOK_ID NUMBER,
+    AUTHOR_ID NUMBER,
+    TITLE VARCHAR2(100),
+    PRICE NUMBER(10,2)
+) storage (initial 1k next 5k minextents 1 maxextents 5);
+
+
+insert into author values(1,101,'Mahabhart',100);
+
+SET linesize 200;
+
+SET SERVEROUTPUT ON;
+
+DECLARE
+    l_total_blocks            NUMBER;
+    l_total_bytes             NUMBER;
+    l_unused_blocks           NUMBER;
+    l_unused_bytes            NUMBER;
+    l_last_used_extent_file_id NUMBER;
+    l_last_used_extent_block_id NUMBER;
+    l_last_used_block          NUMBER;
+BEGIN
+    DBMS_SPACE.UNUSED_SPACE (
+        segment_owner             => 'MCA29',
+        segment_name              => 'AUTHOR',
+        segment_type              => 'TABLE',
+        total_blocks              => l_total_blocks,
+        total_bytes               => l_total_bytes,
+        unused_blocks             => l_unused_blocks,
+        unused_bytes              => l_unused_bytes,
+        last_used_extent_file_id  => l_last_used_extent_file_id,
+        last_used_extent_block_id => l_last_used_extent_block_id,
+        last_used_block           => l_last_used_block
+    );
+
+    DBMS_OUTPUT.PUT_LINE('Total Blocks        : ' || l_total_blocks);
+    DBMS_OUTPUT.PUT_LINE('Total Bytes         : ' || l_total_bytes);
+    DBMS_OUTPUT.PUT_LINE('Unused Blocks       : ' || l_unused_blocks);
+    DBMS_OUTPUT.PUT_LINE('Unused Bytes        : ' || l_unused_bytes);
+    DBMS_OUTPUT.PUT_LINE('Last Used File ID   : ' || l_last_used_extent_file_id);
+    DBMS_OUTPUT.PUT_LINE('Last Used Block ID  : ' || l_last_used_extent_block_id);
+    DBMS_OUTPUT.PUT_LINE('Last Used Block     : ' || l_last_used_block);
+END;
+/
+
+
+

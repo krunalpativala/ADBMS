@@ -1,0 +1,55 @@
+CREATE TABLE student (
+    student_id   NUMBER PRIMARY KEY,
+    name         VARCHAR2(50),
+    marks        NUMBER
+)storage (initial 2k next 5k minextents 1 maxextents 5);
+
+
+CREATE SEQUENCE student_seq START WITH 1 INCREMENT BY 1;
+
+
+CREATE OR REPLACE PROCEDURE insert_students_job AS
+BEGIN
+    INSERT INTO student (student_id, name, marks) VALUES (student_seq.NEXTVAL, 'Hardik', 55);
+    INSERT INTO student (student_id, name, marks) VALUES (student_seq.NEXTVAL, 'Dhruvraj', 77);
+    COMMIT;
+END;
+/
+
+****FOR ONLY ONE TIME****
+
+DECLARE
+    job_no NUMBER;
+BEGIN
+    DBMS_JOB.SUBMIT(
+        job       => job_no,
+        what      => 'BEGIN insert_students_job; END;',
+        next_date => SYSDATE,
+        interval  => 'NULL'  -- run only once
+    );
+    COMMIT;
+    
+    DBMS_OUTPUT.PUT_LINE('Job created with JOB ID: ' || job_no);
+END;
+/
+
+****for every day****
+
+DECLARE
+    job_no NUMBER;
+BEGIN
+    DBMS_JOB.SUBMIT(
+        job       => job_no,
+        what      => 'BEGIN insert_students_job; END;',
+        next_date => SYSDATE,
+        interval  => 'SYSDATE + 1'  -- run every day
+    );
+    COMMIT;
+    DBMS_OUTPUT.PUT_LINE('Job created with JOB ID: ' || job_no);
+END;
+/
+
+
+
+select * from student;
+

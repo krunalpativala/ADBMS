@@ -1,0 +1,46 @@
+CREATE TABLE em (
+    empno NUMBER,
+    ename VARCHAR2(50),
+    deptno NUMBER
+)
+storage (initial 1k next 10k minextents 1 maxextents 5);
+
+INSERT INTO em VALUES (101, 'krunal', 10);
+INSERT INTO em VALUES (102, 'sandip', 20);
+INSERT INTO em VALUES (103, 'tushar', 10);
+COMMIT;
+
+SET SERVEROUTPUT ON;
+
+DECLARE
+    v_cursor_id   NUMBER;        
+    v_query       VARCHAR2(200);  
+    v_empno       NUMBER;        
+    v_ename       VARCHAR2(50);   
+    v_status      NUMBER;         
+BEGIN
+    v_query := 'SELECT empno, ename FROM em WHERE deptno = :deptno';
+
+    v_cursor_id := DBMS_SQL.OPEN_CURSOR;
+
+    DBMS_SQL.PARSE(v_cursor_id, v_query, DBMS_SQL.NATIVE);
+
+    DBMS_SQL.BIND_VARIABLE(v_cursor_id, ':deptno', 10);
+
+    DBMS_SQL.DEFINE_COLUMN(v_cursor_id, 1, v_empno);
+    DBMS_SQL.DEFINE_COLUMN(v_cursor_id, 2, v_ename, 50);
+
+    v_status := DBMS_SQL.EXECUTE(v_cursor_id);
+
+    LOOP
+        EXIT WHEN DBMS_SQL.FETCH_ROWS(v_cursor_id) = 0;
+        DBMS_SQL.COLUMN_VALUE(v_cursor_id, 1, v_empno);
+        DBMS_SQL.COLUMN_VALUE(v_cursor_id, 2, v_ename);
+        DBMS_OUTPUT.PUT_LINE('Emp No: ' || v_empno || ' | Name: ' || v_ename);
+    END LOOP;
+
+    DBMS_SQL.CLOSE_CURSOR(v_cursor_id);
+
+
+END;
+/
